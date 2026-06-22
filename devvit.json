@@ -1,0 +1,39 @@
+{
+  "$schema": "https://developers.reddit.com/schema/config-file.v1.json",
+  "name": "wipe-flair",
+  "server": {
+    "dir": "dist/server",
+    "entry": "index.cjs"
+  },
+  "menu": {
+    "items": [
+      {
+        "label": "Wipe All User Flair",
+        "description": "Permanently removes all user flair from the subreddit. Runs in the background with automatic pagination — safe for large communities.",
+        "location": "subreddit",
+        "forUserType": "moderator",
+        "endpoint": "/internal/menu/wipe-flair"
+      }
+    ]
+  },
+  "forms": {
+    "wipeFlair": "/internal/form/wipe-flair-submit"
+  },
+  "triggers": {
+    "onAppInstall": "/internal/triggers/on-app-install"
+  },
+  "scheduler": {
+    "tasks": {
+      "wipe-flair-job": {
+        "endpoint": "/internal/scheduler/wipe-flair"
+      }
+    }
+  },
+  "scripts": {
+    "build": "vite build",
+    "dev": "vite build --watch"
+  },
+  "permissions": {
+    "reddit": true
+  }
+}
