@@ -1,0 +1,26 @@
+{
+  "$schema": "https://developers.reddit.com/schema/products.json",
+  "products": [
+    {
+      "sku": "tip-coffee",
+      "displayName": "Coffee",
+      "description": "A small tip - thanks for using Wipe Flair!",
+      "price": 100,
+      "accountingType": "INSTANT"
+    },
+    {
+      "sku": "tip-nice-coffee",
+      "displayName": "Nice Coffee",
+      "description": "A bigger tip - much appreciated!",
+      "price": 250,
+      "accountingType": "INSTANT"
+    },
+    {
+      "sku": "tip-lunch",
+      "displayName": "Lunch",
+      "description": "A generous tip - you're the best!",
+      "price": 500,
+      "accountingType": "INSTANT"
+    }
+  ]
+}

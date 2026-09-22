@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import type { MenuItemRequest, UiResponse } from '@devvit/web/shared';
 import type { FormField } from '@devvit/shared-types/shared/form.js';
+import { reddit, redis } from '@devvit/web/server';
 
 export const menu = new Hono();
 
@@ -65,6 +66,29 @@ menu.post('/mop-post', async (c) => {
     },
     200
   );
+});
+
+menu.post('/tip-developer', async (c) => {
+  const subreddit = await reddit.getCurrentSubreddit();
+  const redisKey = `tip-post:${subreddit.id}`;
+
+  const cachedId = await redis.get(redisKey);
+  if (cachedId) {
+    try {
+      const existing = await reddit.getPostById(cachedId as `t3_${string}`);
+      return c.json<UiResponse>({ navigateTo: `https://www.reddit.com${existing.permalink}` }, 200);
+    } catch {
+      // The cached post is gone (deleted, removed) - fall through and make a new one.
+    }
+  }
+
+  const post = await reddit.submitCustomPost({
+    subredditName: subreddit.name,
+    title: 'Tip the Wipe Flair developer',
+  });
+  await redis.set(redisKey, post.id);
+
+  return c.json<UiResponse>({ navigateTo: `https://www.reddit.com${post.permalink}` }, 200);
 });
 
 menu.post('/wipe-flair', async (c) => {

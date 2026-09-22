@@ -12,9 +12,15 @@ export default defineConfig([
       ecmaVersion: 2023,
       globals: globals.node,
       parserOptions: {
-        project: ['./tsconfig.json'],
+        project: ['./tsconfig.json', './src/client/tsconfig.json'],
         tsconfigRootDir: import.meta.dirname,
       },
+    },
+  },
+  {
+    files: ['src/client/**/*.{ts,tsx}'],
+    languageOptions: {
+      globals: globals.browser,
     },
   },
   {

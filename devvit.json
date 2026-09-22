@@ -13,6 +13,13 @@
         "location": "subreddit",
         "forUserType": "moderator",
         "endpoint": "/internal/menu/wipe-flair"
+      },
+      {
+        "label": "Tip the Developer",
+        "description": "Optional tip jar via Reddit Gold. Not required to use Wipe Flair.",
+        "location": "subreddit",
+        "forUserType": "user",
+        "endpoint": "/internal/menu/tip-developer"
       }
     ]
   },
@@ -21,6 +28,19 @@
   },
   "triggers": {
     "onAppInstall": "/internal/triggers/on-app-install"
+  },
+  "post": {
+    "entrypoints": {
+      "default": {
+        "entry": "index.html"
+      }
+    }
+  },
+  "payments": {
+    "productsFile": "./src/products.json",
+    "endpoints": {
+      "fulfillOrder": "/internal/payments/fulfill"
+    }
   },
   "scheduler": {
     "tasks": {
@@ -34,6 +54,7 @@
     "dev": "vite build --watch"
   },
   "permissions": {
-    "reddit": true
+    "reddit": true,
+    "payments": true
   }
 }

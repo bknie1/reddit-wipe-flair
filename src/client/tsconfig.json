@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json.schemastore.org/tsconfig.json",
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "customConditions": ["browser"],
+    "types": [],
+    "outDir": "../../dist/types/client",
+    "tsBuildInfoFile": "../../dist/types/client/tsconfig.tsbuildinfo"
+  },
+  "include": ["**/*"],
+  "exclude": []
+}
