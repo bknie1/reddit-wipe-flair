@@ -7,14 +7,13 @@ A Reddit moderation tool that clears **all** user flair in a subreddit with a si
 1. Install **Wipe Flair** on your subreddit from the Reddit app directory: **Mod Tools → Community Apps → Browse Apps**, search "Wipe Flair", click **Install**.
 2. On your subreddit, open the **mod tools menu** → **Wipe All User Flair**.
 3. Type `CONFIRM` in the dialog and submit.
-4. The wipe runs in the background. Track progress via the **Check Flair Wipe Progress** menu item, which links you to:
+4. The "Flair Wipe Started" dialog appears, with links to the mod log and remaining-flair page (and an optional tip jar link, if you'd like to say thanks). The wipe itself runs in the background.
+5. Track progress any time via the **Check Flair Wipe Progress** menu item, which links you to:
    - **Mod Log** (`reddit.com/mod/SUBREDDIT/log`) — filter by "Posts" action type to see flair edits as they happen.
    - **Remaining Flair** (`reddit.com/mod/SUBREDDIT/flairedusers`) — watch the list empty out.
-5. If the job encounters an error, you'll receive an **internal modmail** with the error message and a count of how many users were cleared before it stopped.
+6. If the job encounters an error, you'll receive an **internal modmail** with the error message and a count of how many users were cleared before it stopped.
 
 > ⚠️ **This is irreversible.** Flair is cleared, not backed up. If you might want the current flair back, export it first from the User Flair page.
-
-If this saved you time, [buy me a coffee](https://buymeacoffee.com/bknie1)!
 
 ## Requirements
 

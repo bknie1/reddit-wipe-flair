@@ -47,6 +47,13 @@ forms.post('/wipe-flair-submit', async (c) => {
               defaultValue: `https://www.reddit.com/mod/${subredditName}/flairedusers`,
               helpText: 'Watch this list empty out as the wipe progresses.',
             },
+            {
+              name: 'coffee',
+              label: 'Enjoyed Wipe Flair?',
+              type: 'string',
+              defaultValue: 'https://buymeacoffee.com/bknie1',
+              helpText: 'Optional tip jar - no obligation, just appreciated.',
+            },
           ],
           cancelLabel: 'Close',
         },
