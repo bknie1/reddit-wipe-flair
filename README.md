@@ -7,7 +7,7 @@ A Reddit moderation tool that clears **all** user flair in a subreddit with a si
 1. Install **Wipe Flair** on your subreddit from the Reddit app directory: **Mod Tools → Community Apps → Browse Apps**, search "Wipe Flair", click **Install**.
 2. On your subreddit, open the **mod tools menu** → **Wipe All User Flair**.
 3. Type `CONFIRM` in the dialog and submit.
-4. The "Flair Wipe Started" dialog appears, with links to the mod log and remaining-flair page (and a pointer to the "Tip the Developer" menu item, if you'd like to say thanks). The wipe itself runs in the background.
+4. The "Flair Wipe Started" dialog appears, with links to the mod log and remaining-flair page. The wipe itself runs in the background.
 5. Track progress any time via the **Check Flair Wipe Progress** menu item, which links you to:
    - **Mod Log** (`reddit.com/mod/SUBREDDIT/log`) — filter by "Posts" action type to see flair edits as they happen.
    - **Remaining Flair** (`reddit.com/mod/SUBREDDIT/flairedusers`) — watch the list empty out.
@@ -15,7 +15,9 @@ A Reddit moderation tool that clears **all** user flair in a subreddit with a si
 
 > ⚠️ **This is irreversible.** Flair is cleared, not backed up. If you might want the current flair back, export it first from the User Flair page.
 
-If Wipe Flair saved you time, there's an optional **Tip the Developer** item in the subreddit menu - paid through Reddit's built-in Payments (Reddit Gold), not an external link. Nothing in the app changes either way.
+## Support
+
+Wipe Flair is free, and nothing in the app requires or depends on a payment. If it saved you time and you'd like to say thanks, there is an optional [Buy Me a Coffee](https://buymeacoffee.com/bknie1) tip jar. Tips go to me, the app's developer (u/ItsAllSoClear), and not to the moderators of any subreddit where the app is installed.
 
 ## Requirements
 
@@ -59,17 +61,12 @@ Then delete `node_modules` and `package-lock.json` and reinstall.
 
     src/
     ├── index.ts             # Hono server setup and route mounting
-    ├── products.json        # Tip jar product definitions (Reddit Payments)
-    ├── client/
-    │   ├── index.html       # "Tip the Developer" webview
-    │   └── index.ts         # Purchase button logic
     ├── core/
     │   └── wipe.ts          # Permission check + roster pagination + batch-clear
     └── routes/
         ├── api.ts           # Public API endpoints
         ├── forms.ts         # Confirmation form handler (schedules the job)
-        ├── menu.ts          # Mod menu items (wipe + progress links + tip jar)
-        ├── payments.ts      # Tip jar order fulfillment
+        ├── menu.ts          # Mod menu items (wipe + progress links)
         ├── scheduler.ts     # Background wipe job handler
         └── triggers.ts      # App lifecycle triggers
 

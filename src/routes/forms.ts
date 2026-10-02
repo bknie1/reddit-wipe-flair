@@ -47,13 +47,6 @@ forms.post('/wipe-flair-submit', async (c) => {
               defaultValue: `https://www.reddit.com/mod/${subredditName}/flairedusers`,
               helpText: 'Watch this list empty out as the wipe progresses.',
             },
-            {
-              name: 'tip',
-              label: 'Enjoyed Wipe Flair?',
-              type: 'string',
-              defaultValue: "Find \"Tip the Developer\" in this subreddit's menu.",
-              helpText: 'Optional - a Reddit Gold tip jar, nothing in the app changes either way.',
-            },
           ],
           cancelLabel: 'Close',
         },
