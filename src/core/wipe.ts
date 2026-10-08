@@ -4,7 +4,8 @@ const PROGRESS_KEY = 'wipe-progress';
 const BATCH_SIZE = 25;
 const MAX_LISTED_FAILURES = 50;
 
-type Progress = { cleared: number; failedCount: number; failed: string[]; done: boolean; error?: string };
+type Skipped = { username: string; reason: string };
+type Progress = { cleared: number; failedCount: number; failed: Skipped[]; done: boolean; error?: string };
 
 export async function checkFlairPermission(subredditName: string) {
   const me = await reddit.getCurrentUser();
@@ -27,16 +28,33 @@ async function readProgress(): Promise<Progress> {
   };
 }
 
+function describeFailure(raw: string): string {
+  if (/404|not.?found|doesn.?t exist|does not exist|USER_DOESNT_EXIST/i.test(raw)) {
+    return 'account no longer exists (deleted or suspended)';
+  }
+  if (/403|forbidden|not allowed/i.test(raw)) return 'Reddit refused the change (permissions)';
+  if (/429|rate.?limit|too many/i.test(raw)) return 'rate limited by Reddit';
+  if (/500|503|INTERNAL|timeout|timed out/i.test(raw)) return 'Reddit returned a server error for this account';
+  return `Reddit rejected the change: ${raw}`;
+}
+
 async function clearBatch(
   subredditName: string,
   usernames: string[]
-): Promise<{ cleared: number; failed: string[] }> {
+): Promise<{ cleared: number; failed: Skipped[] }> {
   const batch = usernames.map((username) => ({ username, text: '', cssClass: '' }));
 
   for (let attempt = 1; attempt <= 3; attempt++) {
     try {
       const results = await reddit.setUserFlairBatch(subredditName, batch);
-      const failed = usernames.filter((_, i) => results[i]?.errors);
+      const failed: Skipped[] = [];
+      usernames.forEach((username, i) => {
+        const errors = results[i]?.errors;
+        if (!errors) return;
+        const raw = errors.user ?? errors.css ?? errors.row ?? results[i]?.status ?? 'unknown error';
+        failed.push({ username, reason: describeFailure(raw) });
+      });
+      failed.forEach((f) => console.warn(`skipped u/${f.username}: ${f.reason}`));
       return { cleared: usernames.length - failed.length, failed };
     } catch (err) {
       console.error(`batch attempt ${attempt} failed: ${err instanceof Error ? err.message : String(err)}`);
@@ -45,14 +63,16 @@ async function clearBatch(
   }
 
   let cleared = 0;
-  const failed: string[] = [];
+  const failed: Skipped[] = [];
   for (const username of usernames) {
     try {
       await reddit.removeUserFlair(subredditName, username);
       cleared++;
     } catch (err) {
-      console.error(`could not clear u/${username}: ${err instanceof Error ? err.message : String(err)}`);
-      failed.push(username);
+      const raw = err instanceof Error ? err.message : String(err);
+      const reason = describeFailure(raw);
+      console.warn(`skipped u/${username}: ${reason} (${raw})`);
+      failed.push({ username, reason });
     }
   }
   return { cleared, failed };
@@ -63,7 +83,7 @@ async function clearBatch(
 // keeps failing is retried one user at a time so a single bad account cannot stop the wipe.
 export async function runFlairWipe(subredditName: string, after?: string): Promise<void> {
   let clearedThisPage = 0;
-  const failedThisPage: string[] = [];
+  const failedThisPage: Skipped[] = [];
 
   try {
     const subreddit = await reddit.getSubredditByName(subredditName);
@@ -112,8 +132,11 @@ export async function runFlairWipe(subredditName: string, after?: string): Promi
           subject: 'Flair wipe finished with some failures',
           body:
             `The flair wipe cleared ${progress.cleared} users, but ${progress.failedCount} could not be cleared ` +
-            `(for example, suspended or deleted accounts). Run the wipe again to retry them.\n\n` +
-            progress.failed.map((u) => `- u/${u}`).join('\n'),
+            `Their flair was left as is, and the wipe continued past them.\n\n` +
+            progress.failed.map((f) => `- u/${f.username}: ${f.reason}`).join('\n') +
+            (progress.failedCount > progress.failed.length
+              ? `\n- and ${progress.failedCount - progress.failed.length} more (listed in the app logs)`
+              : ''),
           to: null,
         });
       } catch (mailErr) {
