@@ -1,6 +1,10 @@
 import { reddit, redis, scheduler } from '@devvit/web/server';
 
 const PROGRESS_KEY = 'wipe-progress';
+const BATCH_SIZE = 25;
+const MAX_LISTED_FAILURES = 50;
+
+type Progress = { cleared: number; failedCount: number; failed: string[]; done: boolean; error?: string };
 
 export async function checkFlairPermission(subredditName: string) {
   const me = await reddit.getCurrentUser();
@@ -12,10 +16,55 @@ export async function checkFlairPermission(subredditName: string) {
   return { ok: true, message: '' };
 }
 
-// Processes one page of up to 1000 flaired users, clears their flair in
-// batches of 100, then schedules the next job with the pagination cursor if
-// there are more pages. This keeps each job well within Devvit's runtime limit.
+async function readProgress(): Promise<Progress> {
+  const raw = await redis.get(PROGRESS_KEY);
+  const parsed = raw ? (JSON.parse(raw) as Partial<Progress>) : {};
+  return {
+    cleared: parsed.cleared ?? 0,
+    failedCount: parsed.failedCount ?? 0,
+    failed: parsed.failed ?? [],
+    done: parsed.done ?? false,
+  };
+}
+
+async function clearBatch(
+  subredditName: string,
+  usernames: string[]
+): Promise<{ cleared: number; failed: string[] }> {
+  const batch = usernames.map((username) => ({ username, text: '', cssClass: '' }));
+
+  for (let attempt = 1; attempt <= 3; attempt++) {
+    try {
+      const results = await reddit.setUserFlairBatch(subredditName, batch);
+      const failed = usernames.filter((_, i) => results[i]?.errors);
+      return { cleared: usernames.length - failed.length, failed };
+    } catch (err) {
+      console.error(`batch attempt ${attempt} failed: ${err instanceof Error ? err.message : String(err)}`);
+      if (attempt < 3) await new Promise((r) => setTimeout(r, attempt * 2000));
+    }
+  }
+
+  let cleared = 0;
+  const failed: string[] = [];
+  for (const username of usernames) {
+    try {
+      await reddit.removeUserFlair(subredditName, username);
+      cleared++;
+    } catch (err) {
+      console.error(`could not clear u/${username}: ${err instanceof Error ? err.message : String(err)}`);
+      failed.push(username);
+    }
+  }
+  return { cleared, failed };
+}
+
+// Processes one page of up to 1000 flaired users in batches of 25, then schedules
+// the next job with the pagination cursor if there are more pages. A batch that
+// keeps failing is retried one user at a time so a single bad account cannot stop the wipe.
 export async function runFlairWipe(subredditName: string, after?: string): Promise<void> {
+  let clearedThisPage = 0;
+  const failedThisPage: string[] = [];
+
   try {
     const subreddit = await reddit.getSubredditByName(subredditName);
 
@@ -27,49 +76,60 @@ export async function runFlairWipe(subredditName: string, after?: string): Promi
     const usernames = users.filter((u) => u.user).map((u) => u.user as string);
     console.log(`processing ${usernames.length} users (cursor=${after ?? 'start'})`);
 
-    let cleared = 0;
-    for (let i = 0; i < usernames.length; i += 25) {
-      const batch = usernames.slice(i, i + 25).map((username) => ({ username, text: '', cssClass: '' }));
-      let results: Awaited<ReturnType<typeof reddit.setUserFlairBatch>> = [];
-      for (let attempt = 1; attempt <= 3; attempt++) {
-        try {
-          results = await reddit.setUserFlairBatch(subredditName, batch);
-          break;
-        } catch (batchErr) {
-          if (attempt === 3) throw batchErr;
-          await new Promise((r) => setTimeout(r, attempt * 2000));
-        }
-      }
-      cleared += results.filter((r) => !r.errors).length;
+    for (let i = 0; i < usernames.length; i += BATCH_SIZE) {
+      const { cleared, failed } = await clearBatch(subredditName, usernames.slice(i, i + BATCH_SIZE));
+      clearedThisPage += cleared;
+      failedThisPage.push(...failed);
     }
 
-    const existing = await redis.get(PROGRESS_KEY);
-    const prev = existing ? (JSON.parse(existing) as { cleared: number }) : { cleared: 0 };
-    const totalCleared = prev.cleared + cleared;
+    const prev = await readProgress();
+    const progress: Progress = {
+      cleared: prev.cleared + clearedThisPage,
+      failedCount: prev.failedCount + failedThisPage.length,
+      failed: [...prev.failed, ...failedThisPage].slice(0, MAX_LISTED_FAILURES),
+      done: false,
+    };
 
     const next = resp.next ?? undefined;
     if (next) {
-      await redis.set(PROGRESS_KEY, JSON.stringify({ cleared: totalCleared, done: false }));
+      await redis.set(PROGRESS_KEY, JSON.stringify(progress));
       await scheduler.runJob({
         name: 'wipe-flair-job',
         data: { subredditName, after: next },
         runAt: new Date(),
       });
-      console.log(`page done: cleared ${cleared} this run, ${totalCleared} total — continuing from cursor`);
-    } else {
-      await redis.set(PROGRESS_KEY, JSON.stringify({ cleared: totalCleared, done: true }));
-      console.log(`wipe complete: cleared ${totalCleared} total`);
+      console.log(`page done: cleared ${clearedThisPage} this run, ${progress.cleared} total - continuing from cursor`);
+      return;
+    }
+
+    await redis.set(PROGRESS_KEY, JSON.stringify({ ...progress, done: true }));
+    console.log(`wipe complete: cleared ${progress.cleared} total, ${progress.failedCount} failed`);
+
+    if (progress.failedCount > 0) {
+      try {
+        await reddit.modMail.createConversation({
+          subredditName,
+          subject: 'Flair wipe finished with some failures',
+          body:
+            `The flair wipe cleared ${progress.cleared} users, but ${progress.failedCount} could not be cleared ` +
+            `(for example, suspended or deleted accounts). Run the wipe again to retry them.\n\n` +
+            progress.failed.map((u) => `- u/${u}`).join('\n'),
+          to: null,
+        });
+      } catch (mailErr) {
+        console.error(`could not send failure summary: ${mailErr instanceof Error ? mailErr.message : String(mailErr)}`);
+      }
     }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     console.error(`runFlairWipe error: ${message}`);
-    const existing = await redis.get(PROGRESS_KEY);
-    const prev = existing ? (JSON.parse(existing) as { cleared: number; done: boolean }) : { cleared: 0, done: false };
-    await redis.set(PROGRESS_KEY, JSON.stringify({ ...prev, error: message }));
+    const prev = await readProgress();
+    const cleared = prev.cleared + clearedThisPage;
+    await redis.set(PROGRESS_KEY, JSON.stringify({ ...prev, cleared, error: message }));
     await reddit.modMail.createConversation({
       subredditName,
       subject: 'Flair wipe error',
-      body: `The flair wipe job stopped with an error:\n\n> ${message}\n\nUsers cleared so far: ${prev.cleared ?? 0}`,
+      body: `The flair wipe job stopped with an error:\n\n> ${message}\n\nUsers cleared so far: ${cleared}`,
       to: null,
     });
   }
